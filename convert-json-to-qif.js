@@ -22,7 +22,9 @@ function generateQIF(data) {
     'Misc Credits': 'NMiscInc',
     'MoneyLink Transfer': 'NMiscInc',
     'Foreign Tax Paid': 'NTax',
-    'Security Transfer': 'NMiscInc', 
+    'Security Transfer': 'NMiscInc',
+    'Journaled Shares': 'NMiscInc',
+    'Internal Transfer': 'NMiscInc',
   };
 
   const descriptionMap = {
@@ -31,12 +33,39 @@ function generateQIF(data) {
     'ISHARES CORE S&P TOTAL US STOCK MARK': 'ISHARES TOTAL US STOCK MARKET ETF',
   };
 
+  const tokenMap = {
+    '(VIG)': 'VANGUARD DIVIDEND APPRECIATION ETF',
+    '(ITOT)': 'ISHARES TOTAL US STOCK MARKET ETF',
+    '(USRT)': 'ISHARES CORE US REIT ETF',
+    '(IXUS)': 'ISHARES CORE MSCI TOTL INTL STCK ETF',
+  };
+
   (data.BrokerageTransactions || []).forEach(tx => {
     let qifAction = actionMap[tx.Action];
 
     if (!qifAction) {
       console.warn(`Skipping unsupported Action: ${tx.Action}`);
       return;
+    }
+
+    switch(tx.Action) {
+      case 'Security Transfer':
+      case 'Internal Transfer':
+        if(tx.Quantity && !tx.Amount) {
+          qifAction = 'NShrsIn';
+        }
+        break;
+      case 'Journaled Shares':
+        if(tx.Quantity && !tx.Amount) {
+          if (tx.Description.includes('CASH ALTERNATIVES INTEREST (MMDA2)')) {
+            qifAction = 'NMiscInc';
+            tx.Amount = tx.Quantity;
+            tx.Quantity = '';
+          } else {
+            qifAction = 'NShrsIn';
+          }
+        }
+        break;
     }
 
     switch(qifAction) {
@@ -50,15 +79,16 @@ function generateQIF(data) {
         break;
     }
 
-    switch(tx.Action) {
-      case 'Security Transfer':
-        if(tx.Quantity && !tx.Amount) {
-          qifAction = 'NShrsIn'
-        }
-    }
-
     if (descriptionMap[tx.Description]) {
       tx.Description = descriptionMap[tx.Description];
+    }
+
+    if (tx.Description.startsWith('TDA TRAN')) {
+      for (const [token, fullName] of Object.entries(tokenMap)){
+        if (tx.Description.includes(token)) {
+          tx.Description = fullName;
+        }
+      }
     }
 
     lines.push(`D${tx.Date}`);
@@ -67,13 +97,12 @@ function generateQIF(data) {
     if (
         qifAction === 'NMiscInc' ||
         qifAction === 'NXIn' ||
-        qifAction === 'NDiv' ||
-        qifAction === 'ShrsIn'
+        qifAction === 'NDiv'
     ) {
       lines.push(`P${tx.Description}-${tx.Symbol}-${tx.Action}`);
     } else {
       if (tx.Description) lines.push(`Y${tx.Description}`);
-      lines.push(`P${tx.Description}`);
+      lines.push(`P${tx.Description}-${tx.Symbol}-${tx.Action}`);
     }
 
     if (tx.Quantity) lines.push(`Q${parseCurrency(tx.Quantity)}`);
