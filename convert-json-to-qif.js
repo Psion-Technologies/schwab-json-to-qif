@@ -25,29 +25,39 @@ function generateQIF(data) {
     'Security Transfer': 'NMiscInc', 
   };
 
+  const descriptionMap = {
+    'SCHWAB VALUE ADVANTAGE MONEY INVESTOR SHARES': 'SCHWAB VALUE ADVANTAGE MONEY INV',
+    'SCHWAB PRIME ADVANTAGE MONEY INV': 'SCHWAB VALUE ADVANTAGE MONEY INV',
+    'ISHARES CORE S&P TOTAL US STOCK MARK': 'ISHARES TOTAL US STOCK MARKET ETF',
+  };
+
   (data.BrokerageTransactions || []).forEach(tx => {
     let qifAction = actionMap[tx.Action];
     if (!qifAction) {
       console.warn(`Skipping unsupported Action: ${tx.Action}`);
       return;
     }
-	if (qifAction === 'NReinvDiv') {
-		if (!tx.Quantity){
-			qifAction = 'NDiv';
-			tx.Description = 'CUR:USD';
-		} else {
-			qifAction = 'NBuy';
-		}
-	}
+    if (qifAction === 'NReinvDiv') {
+      if (!tx.Quantity){
+        qifAction = 'NDiv';
+        tx.Description = 'CUR:USD';
+      } else {
+        qifAction = 'NBuy';
+      }
+    }
+
+    if (descriptionMap[tx.Description]) {
+      tx.Description = descriptionMap[tx.Description];
+    }
 
     lines.push(`D${tx.Date}`);
     lines.push(qifAction);
-	if (qifAction === 'NMiscInc' || qifAction === 'NXIn' || qifAction === 'NDiv') {
-		lines.push(`P${tx.Description}`);
-	} else {
-		if (tx.Description) lines.push(`Y${tx.Description}`);
-		lines.push(`P${tx.Description}`);
-	}
+    if (qifAction === 'NMiscInc' || qifAction === 'NXIn' || qifAction === 'NDiv') {
+      lines.push(`P${tx.Description}-${tx.Symbol}-${tx.Action}`);
+    } else {
+      if (tx.Description) lines.push(`Y${tx.Description}`);
+      lines.push(`P${tx.Description}`);
+    }
     if (tx.Quantity) lines.push(`Q${parseCurrency(tx.Quantity)}`);
     if (tx.Price) lines.push(`I${parseCurrency(tx.Price)}`);
     if (tx.Amount) {
@@ -56,10 +66,10 @@ function generateQIF(data) {
 		lines.push(`U${amount}`);
 		lines.push(`T${amount}`);
     	if (qifAction === 'NXIn'){
-			lines.push(`\$${amount}`);
-			lines.push('L[InvestmentMatchingTransactionsFromPast]');
-		}
-	}
+        lines.push(`\$${amount}`);
+        lines.push('L[InvestmentMatchingTransactionsFromPast]');
+  		}
+	  }
     if (tx['Fees & Comm']) {
 	    lines.push(`O${parseCurrency(tx['Fees & Comm'])}`);
     } else {
