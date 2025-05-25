@@ -25,6 +25,7 @@ function generateQIF(data) {
     'Security Transfer': 'NMiscInc',
     'Journaled Shares': 'NMiscInc',
     'Internal Transfer': 'NMiscInc',
+    'Bond Interest': 'NMiscInc',
   };
 
   const descriptionMap = {
