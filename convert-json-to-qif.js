@@ -33,17 +33,28 @@ function generateQIF(data) {
 
   (data.BrokerageTransactions || []).forEach(tx => {
     let qifAction = actionMap[tx.Action];
+
     if (!qifAction) {
       console.warn(`Skipping unsupported Action: ${tx.Action}`);
       return;
     }
-    if (qifAction === 'NReinvDiv') {
-      if (!tx.Quantity){
-        qifAction = 'NDiv';
-        tx.Description = 'CUR:USD';
-      } else {
-        qifAction = 'NBuy';
-      }
+
+    switch(qifAction) {
+      case 'NReinvDiv':
+        if (!tx.Quantity){
+          qifAction = 'NDiv';
+          tx.Description = 'CUR:USD';
+        } else {
+          qifAction = 'NBuy';
+        }
+        break;
+    }
+
+    switch(tx.Action) {
+      case 'Security Transfer':
+        if(tx.Quantity && !tx.Amount) {
+          qifAction = 'NShrsIn'
+        }
     }
 
     if (descriptionMap[tx.Description]) {
@@ -52,29 +63,40 @@ function generateQIF(data) {
 
     lines.push(`D${tx.Date}`);
     lines.push(qifAction);
-    if (qifAction === 'NMiscInc' || qifAction === 'NXIn' || qifAction === 'NDiv') {
+
+    if (
+        qifAction === 'NMiscInc' ||
+        qifAction === 'NXIn' ||
+        qifAction === 'NDiv' ||
+        qifAction === 'ShrsIn'
+    ) {
       lines.push(`P${tx.Description}-${tx.Symbol}-${tx.Action}`);
     } else {
       if (tx.Description) lines.push(`Y${tx.Description}`);
       lines.push(`P${tx.Description}`);
     }
+
     if (tx.Quantity) lines.push(`Q${parseCurrency(tx.Quantity)}`);
+
     if (tx.Price) lines.push(`I${parseCurrency(tx.Price)}`);
+
     if (tx.Amount) {
-		let amount = parseCurrency(tx.Amount);
-		if(qifAction === 'NBuy') amount = amount * -1;
-		lines.push(`U${amount}`);
-		lines.push(`T${amount}`);
-    	if (qifAction === 'NXIn'){
+      let amount = parseCurrency(tx.Amount);
+      if(qifAction === 'NBuy') amount = amount * -1;
+      lines.push(`U${amount}`);
+      lines.push(`T${amount}`);
+      if (qifAction === 'NXIn'){
         lines.push(`\$${amount}`);
         lines.push('L[InvestmentMatchingTransactionsFromPast]');
-  		}
+      }
 	  }
+
     if (tx['Fees & Comm']) {
 	    lines.push(`O${parseCurrency(tx['Fees & Comm'])}`);
     } else {
 	    lines.push('O0.00');
     }
+
     lines.push('^');
   });
 
