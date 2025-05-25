@@ -134,3 +134,8 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+/.idea/.gitignore
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/schwab-json-to-qif.iml
+/.idea/vcs.xml
